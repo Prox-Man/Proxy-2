@@ -21,10 +21,12 @@ type Header struct {
 // make up the header value
 type HeaderValue struct {
 	// Allow users to load the value from a secret source
-	*SecretSource `json:",omitempty"`
+	// TODO(tuunit): Investigate why mapstructure: ",squash" doesn't work with pointers
+	SecretSource `json:",squash"`
 
 	// Allow users to load the value from a session claim
-	*ClaimSource `json:",omitempty"`
+	// TODO(tuunit): Investigate why mapstructure: ",squash" doesn't work with pointers
+	ClaimSource `json:",squash"`
 }
 
 // ClaimSource allows loading a header value from a claim within the session
@@ -41,4 +43,8 @@ type ClaimSource struct {
 	// Note the value of claim will become the basic auth username and the
 	// basicAuthPassword will be used as the password value.
 	BasicAuthPassword *SecretSource `json:"basicAuthPassword,omitempty"`
+}
+
+func (s *ClaimSource) IsSet() bool {
+	return s.Claim != "" || s.Prefix != "" || s.BasicAuthPassword != nil
 }

@@ -162,12 +162,18 @@ They may change between releases without notice.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
+| `proxyOptions` | _[ProxyOptions](#proxyoptions)_ | ProxyOptions is used to configure the proxy behaviour.<br/>This includes things like the prefix for protected paths, authentication<br/>and routing options. |
+| `probeOptions` | _[ProbeOptions](#probeoptions)_ | ProbeOptions is used to configure the probe endpoint for health and readiness checks. |
 | `upstreamConfig` | _[UpstreamConfig](#upstreamconfig)_ | UpstreamConfig is used to configure upstream servers.<br/>Once a user is authenticated, requests to the server will be proxied to<br/>these upstream servers based on the path mappings defined in this list. |
 | `injectRequestHeaders` | _[[]Header](#header)_ | InjectRequestHeaders is used to configure headers that should be added<br/>to requests to upstream servers.<br/>Headers may source values from either the authenticated user's session<br/>or from a static secret value. |
 | `injectResponseHeaders` | _[[]Header](#header)_ | InjectResponseHeaders is used to configure headers that should be added<br/>to responses from the proxy.<br/>This is typically used when using the proxy as an external authentication<br/>provider in conjunction with another proxy such as NGINX and its<br/>auth_request module.<br/>Headers may source values from either the authenticated user's session<br/>or from a static secret value. |
 | `server` | _[Server](#server)_ | Server is used to configure the HTTP(S) server for the proxy application.<br/>You may choose to run both HTTP and HTTPS servers simultaneously.<br/>This can be done by setting the BindAddress and the SecureBindAddress simultaneously.<br/>To use the secure server you must configure a TLS certificate and key. |
 | `metricsServer` | _[Server](#server)_ | MetricsServer is used to configure the HTTP(S) server for metrics.<br/>You may choose to run both HTTP and HTTPS servers simultaneously.<br/>This can be done by setting the BindAddress and the SecureBindAddress simultaneously.<br/>To use the secure server you must configure a TLS certificate and key. |
-| `providers` | _[Providers](#providers)_ | Providers is used to configure multiple providers. |
+| `providers` | _[Providers](#providers)_ | Providers is used to configure multiple providers.<br/>As of yet multiple providers aren't supported only the first entry is actually used. |
+| `cookie` | _[Cookie](#cookie)_ | Cookie is used to configure the cookie used to store the session state.<br/>This includes options such as the cookie name, its expiry and its domain. |
+| `session` | _[SessionOptions](#sessionoptions)_ | Session is used to configure the session storage.<br/>To either use a cookie or a redis store. |
+| `pageTemplates` | _[PageTemplates](#pagetemplates)_ | PageTemplates is used to configure custom page templates.<br/>This includes the sign in and error pages. |
+| `logging` | _[Logging](#logging)_ | Logging is used to configure the logging output.<br/>Which formats are enabled and where to write the logs. |
 
 ### AzureOptions
 
@@ -203,16 +209,35 @@ ClaimSource allows loading a header value from a claim within the session
 | `prefix` | _string_ | Prefix is an optional prefix that will be prepended to the value of the<br/>claim if it is non-empty. |
 | `basicAuthPassword` | _[SecretSource](#secretsource)_ | BasicAuthPassword converts this claim into a basic auth header.<br/>Note the value of claim will become the basic auth username and the<br/>basicAuthPassword will be used as the password value. |
 
-### Duration
-#### (`string` alias)
+### Cookie
 
-(**Appears on:** [Upstream](#upstream))
+(**Appears on:** [AlphaOptions](#alphaoptions))
 
-Duration is as string representation of a period of time.
-A duration string is a is a possibly signed sequence of decimal numbers,
-each with optional fraction and a unit suffix, such as "300ms", "-1.5h" or "2h45m".
-Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
+Cookie contains configuration options relevant for the CSRF and authentication cookies
 
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `name` | _string_ |  |
+| `secret` | _string_ |  |
+| `domains` | _[]string_ |  |
+| `path` | _string_ |  |
+| `expire` | _duration_ |  |
+| `refresh` | _duration_ |  |
+| `secure` | _bool_ |  |
+| `httpOnly` | _bool_ |  |
+| `sameSite` | _string_ |  |
+| `csrfPerRequest` | _bool_ |  |
+| `csrfExpire` | _duration_ |  |
+
+### CookieStoreOptions
+
+(**Appears on:** [SessionOptions](#sessionoptions))
+
+CookieStoreOptions contains configuration options for the CookieSessionStore.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `minimal` | _bool_ |  |
 
 ### GitHubOptions
 
@@ -275,7 +300,7 @@ make up the header value
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `value` | _[]byte_ | Value expects a base64 encoded string value. |
+| `value` | _string_ | Value expects a base64 encoded string value. |
 | `fromEnv` | _string_ | FromEnv expects the name of an environment variable. |
 | `fromFile` | _string_ | FromFile expects a path to a file containing the secret value. |
 | `claim` | _string_ | Claim is the name of the claim in the session that the value should be<br/>loaded from. |
@@ -292,6 +317,41 @@ make up the header value
 | ----- | ---- | ----------- |
 | `groups` | _[]string_ | Group enables to restrict login to members of indicated group |
 | `roles` | _[]string_ | Role enables to restrict login to users with role (only available when using the keycloak-oidc provider) |
+
+### LogFileOptions
+
+(**Appears on:** [Logging](#logging))
+
+LogFileOptions contains options for configuring logging to a file
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `filename` | _string_ |  |
+| `maxSize` | _int_ |  |
+| `maxAge` | _int_ |  |
+| `maxBackups` | _int_ |  |
+| `compress` | _bool_ |  |
+
+### Logging
+
+(**Appears on:** [AlphaOptions](#alphaoptions))
+
+Logging contains all options required for configuring the logging
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `authEnabled` | _bool_ |  |
+| `authFormat` | _string_ |  |
+| `requestEnabled` | _bool_ |  |
+| `requestFormat` | _string_ |  |
+| `standardEnabled` | _bool_ |  |
+| `standardFormat` | _string_ |  |
+| `errToInfo` | _bool_ |  |
+| `excludePaths` | _[]string_ |  |
+| `localTime` | _bool_ |  |
+| `silencePing` | _bool_ |  |
+| `requestIdHeader` | _string_ |  |
+| `fileOptions` | _[LogFileOptions](#logfileoptions)_ |  |
 
 ### LoginGovOptions
 
@@ -405,6 +465,35 @@ character.
 | `audienceClaims` | _[]string_ | AudienceClaim allows to define any claim that is verified against the client id<br/>By default `aud` claim is used for verification. |
 | `extraAudiences` | _[]string_ | ExtraAudiences is a list of additional audiences that are allowed<br/>to pass verification in addition to the client id. |
 
+### PageTemplates
+
+(**Appears on:** [AlphaOptions](#alphaoptions))
+
+Templates includes options for configuring the sign in and error pages
+appearance.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `path` | _string_ | Path is the path to a folder containing a sign_in.html and an error.html<br/>template.<br/>These files will be used instead of the default templates if present.<br/>If either file is missing, the default will be used instead. |
+| `customLogo` | _string_ | CustomLogo is the path or a URL to a logo that should replace the default logo<br/>on the sign_in page template.<br/>Supported formats are .svg, .png, .jpg and .jpeg.<br/>If URL is used the format support depends on the browser.<br/>To disable the default logo, set this value to "-". |
+| `banner` | _string_ | Banner overides the default sign_in page banner text. If unspecified,<br/>the message will give users a list of allowed email domains. |
+| `footer` | _string_ | Footer overrides the default sign_in page footer text. |
+| `displayLoginForm` | _bool_ | DisplayLoginForm determines whether the sign_in page should render a<br/>password form if a static passwords file (htpasswd file) has been<br/>configured. |
+| `debug` | _bool_ | Debug renders detailed errors when an error page is shown.<br/>It is not advised to use this in production as errors may contain sensitive<br/>information.<br/>Use only for diagnosing backend errors. |
+
+### ProbeOptions
+
+(**Appears on:** [AlphaOptions](#alphaoptions))
+
+
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `pingPath` | _string_ |  |
+| `pingUserAgent` | _string_ |  |
+| `readyPath` | _string_ |  |
+| `legacyGCPHealthChecks` | _bool_ |  |
+
 ### Provider
 
 (**Appears on:** [Providers](#providers))
@@ -462,6 +551,61 @@ and oidc.
 Providers is a collection of definitions for providers.
 
 
+### ProxyOptions
+
+(**Appears on:** [AlphaOptions](#alphaoptions))
+
+
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `allowQuerySemicolons` | _bool_ | security |
+| `forceHttps` | _bool_ |  |
+| `skipAuthRegex` | _[]string_ |  |
+| `skipAuthRoutes` | _[]string_ |  |
+| `skipAuthPreflight` | _bool_ |  |
+| `sslInsecureSkipVerify` | _bool_ |  |
+| `trustedIPs` | _[]string_ |  |
+| `authenticatedEmailsFile` | _string_ | authentication |
+| `emailDomains` | _[]string_ |  |
+| `whitelistDomains` | _[]string_ |  |
+| `htpasswdFile` | _string_ |  |
+| `htpasswdUserGroups` | _[]string_ |  |
+| `skipJwtBearerTokens` | _bool_ |  |
+| `extraJwtIssuers` | _[]string_ |  |
+| `apiRoutes` | _[]string_ | routing |
+| `reverseProxy` | _bool_ |  |
+| `proxyPrefix` | _string_ |  |
+| `redirectUrl` | _string_ |  |
+| `relativeRedirectUrl` | _bool_ |  |
+| `realClientIPHeader` | _string_ |  |
+| `skipProviderButton` | _bool_ |  |
+| `encodeState` | _bool_ |  |
+| `forceJsonErrors` | _bool_ | Force oauth2-proxy error responses to be JSON |
+| `legacyPreferEmailToUser` | _bool_ | This is used for backwards compatibility |
+| `legacySignatureKey` | _string_ |  |
+
+### RedisStoreOptions
+
+(**Appears on:** [SessionOptions](#sessionoptions))
+
+RedisStoreOptions contains configuration options for the RedisSessionStore.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `connectionURL` | _string_ |  |
+| `password` | _string_ |  |
+| `username` | _string_ |  |
+| `useSentinel` | _bool_ |  |
+| `sentinelPassword` | _string_ |  |
+| `sentinelMasterName` | _string_ |  |
+| `sentinelConnectionURLs` | _[]string_ |  |
+| `useCluster` | _bool_ |  |
+| `clusterConnectionURLs` | _[]string_ |  |
+| `caPath` | _string_ |  |
+| `insecureSkipTLSVerify` | _bool_ |  |
+| `idleTimeout` | _int_ |  |
+
 ### SecretSource
 
 (**Appears on:** [ClaimSource](#claimsource), [HeaderValue](#headervalue), [TLS](#tls))
@@ -471,7 +615,7 @@ Only one source within the struct should be defined at any time.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `value` | _[]byte_ | Value expects a base64 encoded string value. |
+| `value` | _string_ | Value expects a base64 encoded string value. |
 | `fromEnv` | _string_ | FromEnv expects the name of an environment variable. |
 | `fromFile` | _string_ | FromFile expects a path to a file containing the secret value. |
 
@@ -483,9 +627,21 @@ Server represents the configuration for an HTTP(S) server
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `BindAddress` | _string_ | BindAddress is the address on which to serve traffic.<br/>Leave blank or set to "-" to disable. |
-| `SecureBindAddress` | _string_ | SecureBindAddress is the address on which to serve secure traffic.<br/>Leave blank or set to "-" to disable. |
-| `TLS` | _[TLS](#tls)_ | TLS contains the information for loading the certificate and key for the<br/>secure traffic and further configuration for the TLS server. |
+| `httpAddress` | _string_ | BindAddress is the address on which to serve traffic.<br/>Leave blank or set to "-" to disable. |
+| `httpsAddress` | _string_ | SecureBindAddress is the address on which to serve secure traffic.<br/>Leave blank or set to "-" to disable. |
+| `tls` | _[TLS](#tls)_ | TLS contains the information for loading the certificate and key for the<br/>secure traffic and further configuration for the TLS server. |
+
+### SessionOptions
+
+(**Appears on:** [AlphaOptions](#alphaoptions))
+
+SessionOptions contains configuration options for the SessionStore providers.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | _string_ |  |
+| `cookie` | _[CookieStoreOptions](#cookiestoreoptions)_ |  |
+| `redis` | _[RedisStoreOptions](#redisstoreoptions)_ |  |
 
 ### TLS
 
@@ -496,10 +652,10 @@ as well as an optional minimal TLS version that is acceptable.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `Key` | _[SecretSource](#secretsource)_ | Key is the TLS key data to use.<br/>Typically this will come from a file. |
-| `Cert` | _[SecretSource](#secretsource)_ | Cert is the TLS certificate data to use.<br/>Typically this will come from a file. |
-| `MinVersion` | _string_ | MinVersion is the minimal TLS version that is acceptable.<br/>E.g. Set to "TLS1.3" to select TLS version 1.3 |
-| `CipherSuites` | _[]string_ | CipherSuites is a list of TLS cipher suites that are allowed.<br/>E.g.:<br/>- TLS_RSA_WITH_RC4_128_SHA<br/>- TLS_RSA_WITH_AES_256_GCM_SHA384<br/>If not specified, the default Go safe cipher list is used.<br/>List of valid cipher suites can be found in the [crypto/tls documentation](https://pkg.go.dev/crypto/tls#pkg-constants). |
+| `key` | _[SecretSource](#secretsource)_ | Key is the TLS key data to use.<br/>Typically this will come from a file. |
+| `cert` | _[SecretSource](#secretsource)_ | Cert is the TLS certificate data to use.<br/>Typically this will come from a file. |
+| `minVersion` | _string_ | MinVersion is the minimal TLS version that is acceptable.<br/>E.g. Set to "TLS1.3" to select TLS version 1.3 |
+| `cipherSuites` | _[]string_ | CipherSuites is a list of TLS cipher suites that are allowed.<br/>E.g.:<br/>- TLS_RSA_WITH_RC4_128_SHA<br/>- TLS_RSA_WITH_AES_256_GCM_SHA384<br/>If not specified, the default Go safe cipher list is used.<br/>List of valid cipher suites can be found in the [crypto/tls documentation](https://pkg.go.dev/crypto/tls#pkg-constants). |
 
 ### URLParameterRule
 
@@ -531,10 +687,10 @@ Requests will be proxied to this upstream if the path matches the request path.
 | `insecureSkipTLSVerify` | _bool_ | InsecureSkipTLSVerify will skip TLS verification of upstream HTTPS hosts.<br/>This option is insecure and will allow potential Man-In-The-Middle attacks<br/>between OAuth2 Proxy and the upstream server.<br/>Defaults to false. |
 | `static` | _bool_ | Static will make all requests to this upstream have a static response.<br/>The response will have a body of "Authenticated" and a response code<br/>matching StaticCode.<br/>If StaticCode is not set, the response will return a 200 response. |
 | `staticCode` | _int_ | StaticCode determines the response code for the Static response.<br/>This option can only be used with Static enabled. |
-| `flushInterval` | _[Duration](#duration)_ | FlushInterval is the period between flushing the response buffer when<br/>streaming response from the upstream.<br/>Defaults to 1 second. |
+| `flushInterval` | _duration_ | FlushInterval is the period between flushing the response buffer when<br/>streaming response from the upstream.<br/>Defaults to 1 second. |
 | `passHostHeader` | _bool_ | PassHostHeader determines whether the request host header should be proxied<br/>to the upstream server.<br/>Defaults to true. |
 | `proxyWebSockets` | _bool_ | ProxyWebSockets enables proxying of websockets to upstream servers<br/>Defaults to true. |
-| `timeout` | _[Duration](#duration)_ | Timeout is the maximum duration the server will wait for a response from the upstream server.<br/>Defaults to 30 seconds. |
+| `timeout` | _duration_ | Timeout is the maximum duration the server will wait for a response from the upstream server.<br/>Defaults to 30 seconds. |
 
 ### UpstreamConfig
 

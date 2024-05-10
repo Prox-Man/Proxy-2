@@ -18,7 +18,7 @@ import (
 
 var _ = Describe("Configuration Loading Suite", func() {
 	// For comparing the full configuration differences of our structs we need to increase the gomega limits
-	format.MaxLength = 50000
+	format.MaxLength = 0
 	format.MaxDepth = 10
 
 	const testLegacyConfig = `
@@ -28,9 +28,21 @@ set_basic_auth="true"
 basic_auth_password="super-secret-password"
 client_id="oauth2-proxy"
 client_secret="b2F1dGgyLXByb3h5LWNsaWVudC1zZWNyZXQK"
+cookie_secure="false"
+cookie_secret="OQINaROshtE9TcZkNAm-5Zs2Pv3xaWytBmc5W7sPX7w="
+email_domains="example.com"
+redirect_url="http://localhost:4180/oauth2/callback"
+session_cookie_minimal="true"
+ping_path="/ping-pong"
+ready_path="/readysteady"
+errors_to_info_log="true"
+silence_ping_logging="true"
 `
 
 	const testAlphaConfig = `
+proxyOptions:
+  emailDomains: ["example.com"]
+  redirectUrl: http://localhost:4180/oauth2/callback
 upstreamConfig:
   proxyrawpath: false
   upstreams:
@@ -47,7 +59,7 @@ injectRequestHeaders:
   - claim: user
     prefix: "Basic "
     basicAuthPassword:
-      value: c3VwZXItc2VjcmV0LXBhc3N3b3Jk
+      value: super-secret-password
 - name: X-Forwarded-Groups
   values:
   - claim: groups
@@ -66,9 +78,22 @@ injectResponseHeaders:
   - claim: user
     prefix: "Basic "
     basicAuthPassword:
-      value: c3VwZXItc2VjcmV0LXBhc3N3b3Jk
+      value: super-secret-password
 server:
-  bindAddress: "127.0.0.1:4180"
+  httpAddress: "127.0.0.1:4180"
+cookie:
+  secure: false
+  secret: OQINaROshtE9TcZkNAm-5Zs2Pv3xaWytBmc5W7sPX7w=
+session:
+  type: cookie
+  cookie:
+    minimal: true
+probeOptions:
+  pingPath: /ping-pong
+  readyPath: /readysteady
+logging:
+  errToInfo: true
+  silencePing: true
 providers:
 - provider: google
   ID: google=oauth2-proxy
@@ -89,21 +114,12 @@ providers:
     - force
 `
 
-	const testCoreConfig = `
-cookie_secret="OQINaROshtE9TcZkNAm-5Zs2Pv3xaWytBmc5W7sPX7w="
-email_domains="example.com"
-cookie_secure="false"
-
-redirect_url="http://localhost:4180/oauth2/callback"
-`
-
 	boolPtr := func(b bool) *bool {
 		return &b
 	}
 
-	durationPtr := func(d time.Duration) *options.Duration {
-		du := options.Duration(d)
-		return &du
+	durationPtr := func(d time.Duration) *time.Duration {
+		return &d
 	}
 
 	testExpectedOptions := func() *options.Options {
@@ -111,9 +127,13 @@ redirect_url="http://localhost:4180/oauth2/callback"
 		Expect(err).ToNot(HaveOccurred())
 
 		opts.Cookie.Secret = "OQINaROshtE9TcZkNAm-5Zs2Pv3xaWytBmc5W7sPX7w="
-		opts.EmailDomains = []string{"example.com"}
 		opts.Cookie.Secure = false
-		opts.RawRedirectURL = "http://localhost:4180/oauth2/callback"
+		opts.ProxyOptions = options.ProxyOptions{
+			ProxyPrefix:        "/oauth2",
+			RealClientIPHeader: "X-Real-IP",
+			EmailDomains:       []string{"example.com"},
+			RedirectURL:        "http://localhost:4180/oauth2/callback",
+		}
 
 		opts.UpstreamServers = options.UpstreamConfig{
 			Upstreams: []options.Upstream{
@@ -133,11 +153,11 @@ redirect_url="http://localhost:4180/oauth2/callback"
 			Name: "Authorization",
 			Values: []options.HeaderValue{
 				{
-					ClaimSource: &options.ClaimSource{
+					ClaimSource: options.ClaimSource{
 						Claim:  "user",
 						Prefix: "Basic ",
 						BasicAuthPassword: &options.SecretSource{
-							Value: []byte("super-secret-password"),
+							Value: "super-secret-password",
 						},
 					},
 				},
@@ -169,6 +189,22 @@ redirect_url="http://localhost:4180/oauth2/callback"
 				},
 			},
 		}
+
+		opts.Session = options.SessionOptions{
+			Type: "cookie",
+			Cookie: options.CookieStoreOptions{
+				Minimal: true,
+			},
+		}
+
+		opts.ProbeOptions = options.ProbeOptions{
+			PingPath:  "/ping-pong",
+			ReadyPath: "/readysteady",
+		}
+
+		opts.Logging.ErrToInfo = true
+		opts.Logging.SilencePing = true
+
 		return opts
 	}
 
@@ -227,7 +263,7 @@ redirect_url="http://localhost:4180/oauth2/callback"
 
 			opts, err := loadConfiguration(configFileName, alphaConfigFileName, extraFlags, in.args)
 			if in.expectedErr != nil {
-				Expect(err).To(MatchError(in.expectedErr.Error()))
+				Expect(err).To(MatchError(ContainSubstring(in.expectedErr.Error())))
 			} else {
 				Expect(err).ToNot(HaveOccurred())
 			}
@@ -235,30 +271,30 @@ redirect_url="http://localhost:4180/oauth2/callback"
 			Expect(opts).To(EqualOpts(in.expectedOptions()))
 		},
 		Entry("with legacy configuration", loadConfigurationTableInput{
-			configContent:   testCoreConfig + testLegacyConfig,
+			configContent:   testLegacyConfig,
 			expectedOptions: testExpectedOptions,
 		}),
 		Entry("with alpha configuration", loadConfigurationTableInput{
-			configContent:      testCoreConfig,
+			configContent:      "",
 			alphaConfigContent: testAlphaConfig,
 			expectedOptions:    testExpectedOptions,
 		}),
 		Entry("with bad legacy configuration", loadConfigurationTableInput{
-			configContent:   testCoreConfig + "unknown_field=\"something\"",
+			configContent:   testLegacyConfig + "unknown_field=\"something\"",
 			expectedOptions: func() *options.Options { return nil },
 			expectedErr:     errors.New("failed to load config: error unmarshalling config: 1 error(s) decoding:\n\n* '' has invalid keys: unknown_field"),
 		}),
 		Entry("with bad alpha configuration", loadConfigurationTableInput{
-			configContent:      testCoreConfig,
+			configContent:      "",
 			alphaConfigContent: testAlphaConfig + ":",
 			expectedOptions:    func() *options.Options { return nil },
 			expectedErr:        fmt.Errorf("failed to load alpha options: error unmarshalling config: error converting YAML to JSON: yaml: line %d: did not find expected key", strings.Count(testAlphaConfig, "\n")),
 		}),
-		Entry("with alpha configuration and bad core configuration", loadConfigurationTableInput{
-			configContent:      testCoreConfig + "unknown_field=\"something\"",
+		Entry("with alpha configuration and legacy configuration", loadConfigurationTableInput{
+			configContent:      testLegacyConfig,
 			alphaConfigContent: testAlphaConfig,
 			expectedOptions:    func() *options.Options { return nil },
-			expectedErr:        errors.New("failed to load core options: failed to load config: error unmarshalling config: 1 error(s) decoding:\n\n* '' has invalid keys: unknown_field"),
+			expectedErr:        errors.New("please convert all legacy options"),
 		}),
 	)
 })

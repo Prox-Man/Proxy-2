@@ -16,8 +16,8 @@ var _ = Describe("Legacy Options", func() {
 			legacyOpts := NewLegacyOptions()
 
 			// Set upstreams and related options to test their conversion
-			flushInterval := Duration(5 * time.Second)
-			timeout := Duration(5 * time.Second)
+			flushInterval := 5 * time.Second
+			timeout := 5 * time.Second
 			legacyOpts.LegacyUpstreams.FlushInterval = time.Duration(flushInterval)
 			legacyOpts.LegacyUpstreams.Timeout = time.Duration(timeout)
 			legacyOpts.LegacyUpstreams.PassHostHeader = true
@@ -144,8 +144,8 @@ var _ = Describe("Legacy Options", func() {
 		skipVerify := true
 		passHostHeader := false
 		proxyWebSockets := true
-		flushInterval := Duration(5 * time.Second)
-		timeout := Duration(5 * time.Second)
+		flushInterval := 5 * time.Second
+		timeout := 5 * time.Second
 
 		// Test cases and expected outcomes
 		validHTTP := "http://foo.bar/baz"
@@ -359,7 +359,7 @@ var _ = Describe("Legacy Options", func() {
 						Claim:  "user",
 						Prefix: "Basic ",
 						BasicAuthPassword: &SecretSource{
-							Value: []byte(basicAuthSecret),
+							Value: basicAuthSecret,
 						},
 					},
 				},
@@ -399,7 +399,7 @@ var _ = Describe("Legacy Options", func() {
 						Claim:  "email",
 						Prefix: "Basic ",
 						BasicAuthPassword: &SecretSource{
-							Value: []byte(basicAuthSecret),
+							Value: basicAuthSecret,
 						},
 					},
 				},
@@ -1036,6 +1036,65 @@ var _ = Describe("Legacy Options", func() {
 				legacyProvider:    legacyConfigLegacyProvider,
 				expectedProviders: Providers{internalConfigProvider},
 				errMsg:            "",
+			}),
+		)
+	})
+
+	Context("Legacy Cookie", func() {
+		type convertCookieTableInput struct {
+			legacyCookie   LegacyCookie
+			expectedCookie Cookie
+		}
+
+		// Test cases and expected outcomes
+		simpleCookie := Cookie{
+			Name: "my-cookie",
+		}
+		simpleLegacyCookie := LegacyCookie{
+			Name: "my-cookie",
+		}
+
+		fullCookie := Cookie{
+			Name:           "_oauth2_proxy",
+			Secret:         "",
+			Domains:        nil,
+			Path:           "/",
+			Expire:         time.Duration(168) * time.Hour,
+			Refresh:        time.Duration(0),
+			Secure:         true,
+			HTTPOnly:       true,
+			SameSite:       "",
+			CSRFPerRequest: false,
+			CSRFExpire:     time.Duration(15) * time.Minute,
+		}
+
+		fullLegacyCookie := LegacyCookie{
+			Name:           "_oauth2_proxy",
+			Secret:         "",
+			Domains:        nil,
+			Path:           "/",
+			Expire:         time.Duration(168) * time.Hour,
+			Refresh:        time.Duration(0),
+			Secure:         true,
+			HTTPOnly:       true,
+			SameSite:       "",
+			CSRFPerRequest: false,
+			CSRFExpire:     time.Duration(15) * time.Minute,
+		}
+
+		DescribeTable("convertLegacyCookie",
+			func(in *convertCookieTableInput) {
+				cookie := in.legacyCookie.convert()
+
+				Expect(cookie).To(Equal(in.expectedCookie))
+			},
+			Entry("with name", &convertCookieTableInput{
+				legacyCookie:   simpleLegacyCookie,
+				expectedCookie: simpleCookie,
+			}),
+			Entry("with all attributes", &convertCookieTableInput{
+				legacyCookie:   fullLegacyCookie,
+				expectedCookie: fullCookie,
 			}),
 		)
 	})

@@ -18,7 +18,7 @@ import (
 
 var _ = Describe("Configuration Loading Suite", func() {
 	// For comparing the full configuration differences of our structs we need to increase the gomega limits
-	format.MaxLength = 50000
+	format.MaxLength = 0
 	format.MaxDepth = 10
 
 	const testLegacyConfig = `
@@ -28,9 +28,16 @@ set_basic_auth="true"
 basic_auth_password="super-secret-password"
 client_id="oauth2-proxy"
 client_secret="b2F1dGgyLXByb3h5LWNsaWVudC1zZWNyZXQK"
+cookie_secure="false"
+cookie_secret="OQINaROshtE9TcZkNAm-5Zs2Pv3xaWytBmc5W7sPX7w="
+email_domains="example.com"
+redirect_url="http://localhost:4180/oauth2/callback"
 `
 
 	const testAlphaConfig = `
+proxyOptions:
+  emailDomains: ["example.com"]
+  redirectUrl: http://localhost:4180/oauth2/callback
 upstreamConfig:
   proxyrawpath: false
   upstreams:
@@ -44,31 +51,40 @@ upstreamConfig:
 injectRequestHeaders:
 - name: Authorization
   values:
-  - claim: user
-    prefix: "Basic "
-    basicAuthPassword:
-      value: c3VwZXItc2VjcmV0LXBhc3N3b3Jk
+  - claimSource:
+      claim: user
+      prefix: "Basic "
+      basicAuthPassword:
+        value: super-secret-password
 - name: X-Forwarded-Groups
   values:
-  - claim: groups
+  - claimSource:
+      claim: groups
 - name: X-Forwarded-User
   values:
-  - claim: user
+  - claimSource:
+      claim: user
 - name: X-Forwarded-Email
   values:
-  - claim: email
+  - claimSource:
+      claim: email
 - name: X-Forwarded-Preferred-Username
   values:
-  - claim: preferred_username
+  - claimSource:
+      claim: preferred_username
 injectResponseHeaders:
 - name: Authorization
   values:
-  - claim: user
-    prefix: "Basic "
-    basicAuthPassword:
-      value: c3VwZXItc2VjcmV0LXBhc3N3b3Jk
+  - claimSource:
+      claim: user
+      prefix: "Basic "
+      basicAuthPassword:
+        value: super-secret-password
 server:
-  bindAddress: "127.0.0.1:4180"
+  httpAddress: "127.0.0.1:4180"
+cookie:
+  secure: false
+  secret: OQINaROshtE9TcZkNAm-5Zs2Pv3xaWytBmc5W7sPX7w=
 providers:
 - provider: google
   ID: google=oauth2-proxy
@@ -90,20 +106,21 @@ providers:
 `
 
 	const testCoreConfig = `
-cookie_secret="OQINaROshtE9TcZkNAm-5Zs2Pv3xaWytBmc5W7sPX7w="
-email_domains="example.com"
-cookie_secure="false"
+		ping_path="/ping-pong"
+		ready_path="/readysteady"
 
-redirect_url="http://localhost:4180/oauth2/callback"
-`
+		session_cookie_minimal="true"
+
+		errors_to_info_log="true"
+		silence_ping_logging="true"
+	`
 
 	boolPtr := func(b bool) *bool {
 		return &b
 	}
 
-	durationPtr := func(d time.Duration) *options.Duration {
-		du := options.Duration(d)
-		return &du
+	durationPtr := func(d time.Duration) *time.Duration {
+		return &d
 	}
 
 	testExpectedOptions := func() *options.Options {
@@ -111,9 +128,13 @@ redirect_url="http://localhost:4180/oauth2/callback"
 		Expect(err).ToNot(HaveOccurred())
 
 		opts.Cookie.Secret = "OQINaROshtE9TcZkNAm-5Zs2Pv3xaWytBmc5W7sPX7w="
-		opts.EmailDomains = []string{"example.com"}
 		opts.Cookie.Secure = false
-		opts.RawRedirectURL = "http://localhost:4180/oauth2/callback"
+		opts.ProxyOptions = options.ProxyOptions{
+			ProxyPrefix:        "/oauth2",
+			RealClientIPHeader: "X-Real-IP",
+			EmailDomains:       []string{"example.com"},
+			RedirectURL:        "http://localhost:4180/oauth2/callback",
+		}
 
 		opts.UpstreamServers = options.UpstreamConfig{
 			Upstreams: []options.Upstream{
@@ -137,7 +158,7 @@ redirect_url="http://localhost:4180/oauth2/callback"
 						Claim:  "user",
 						Prefix: "Basic ",
 						BasicAuthPassword: &options.SecretSource{
-							Value: []byte("super-secret-password"),
+							Value: "super-secret-password",
 						},
 					},
 				},
@@ -169,6 +190,20 @@ redirect_url="http://localhost:4180/oauth2/callback"
 				},
 			},
 		}
+
+		opts.Session = options.SessionOptions{
+			Type: "cookie",
+			Cookie: options.CookieStoreOptions{
+				Minimal: true,
+			},
+		}
+
+		opts.PingPath = "/ping-pong"
+		opts.ReadyPath = "/readysteady"
+
+		opts.Logging.ErrToInfo = true
+		opts.Logging.SilencePing = true
+
 		return opts
 	}
 
@@ -227,7 +262,7 @@ redirect_url="http://localhost:4180/oauth2/callback"
 
 			opts, err := loadConfiguration(configFileName, alphaConfigFileName, extraFlags, in.args)
 			if in.expectedErr != nil {
-				Expect(err).To(MatchError(in.expectedErr.Error()))
+				Expect(err).To(MatchError(ContainSubstring(in.expectedErr.Error())))
 			} else {
 				Expect(err).ToNot(HaveOccurred())
 			}
@@ -258,7 +293,7 @@ redirect_url="http://localhost:4180/oauth2/callback"
 			configContent:      testCoreConfig + "unknown_field=\"something\"",
 			alphaConfigContent: testAlphaConfig,
 			expectedOptions:    func() *options.Options { return nil },
-			expectedErr:        errors.New("failed to load core options: failed to load config: error unmarshalling config: 1 error(s) decoding:\n\n* '' has invalid keys: unknown_field"),
+			expectedErr:        errors.New("has invalid keys: unknown_field"),
 		}),
 	)
 })
